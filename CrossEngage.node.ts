@@ -172,6 +172,7 @@ export class CrossEngage implements INodeType {
 						'Campaign Status': campaign['status'],
 						'Campaign Created': campaign['created'],
 						'Campaign Modified': campaign['modified'],
+						'Campaign Start Date': campaign_details['classOptions'] && campaign_details['classOptions']['startDate'] ? campaign_details['classOptions']['startDate'] : '',
 						'Next Campaign Dispatch': campaign['nextDispatch'],
 						'Campaign Group': campaign['groupName'],
 						'Campaign Labels': campaign['labels'].map((l: { name: string; }) => l.name).join(', '),
@@ -184,6 +185,8 @@ export class CrossEngage implements INodeType {
 					if (message.hasOwnProperty('mailOptions') && message['mailOptions'] != null) {
 						message_item['json']['Mail Subject'] = message['mailOptions'].hasOwnProperty('subject') && message['mailOptions']['subject'] != null ? message['mailOptions']['subject'] : '';
 						// Potentially other mailOptions too?
+					} else if (message.hasOwnProperty('channelOptions') && message['channelOptions'] != null) {
+						message_item['json']['Mail Subject'] = message['channelOptions'].hasOwnProperty('subject') && message['channelOptions']['subject'] != null ? message['channelOptions']['subject'] : '';
 					}
 					let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
 					metric_definitions.forEach(metric => {
