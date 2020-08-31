@@ -178,10 +178,11 @@ export class CrossEngage implements INodeType {
 						'Message ID': message['id'],
 						'Message Name': message['label'],
 						'Message Channel': message['channelType'],
-						'Message Provider': message['subChannelType']
+						'Message Provider': message['subChannelType'],
+						'Mail Subject': ''
 					};
-					if (message.hasOwnProperty('mailOptions')) {
-						message_item['json']['Mail Subject'] = message['mailOptions']['subject'] ? message['mailOptions']['subject'] : '';
+					if (message.hasOwnProperty('mailOptions') && message['mailOptions'] != null) {
+						message_item['json']['Mail Subject'] = message['mailOptions'].hasOwnProperty('subject') && message['mailOptions']['subject'] != null ? message['mailOptions']['subject'] : '';
 						// Potentially other mailOptions too?
 					}
 					let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
