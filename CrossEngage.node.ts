@@ -5,7 +5,6 @@ import {
 	INodeTypeDescription,
 } from 'n8n-workflow';
 
-
 export class CrossEngage implements INodeType {
 	description: INodeTypeDescription = {
 		credentials:  [{
@@ -181,6 +180,10 @@ export class CrossEngage implements INodeType {
 						'Message Channel': message['channelType'],
 						'Message Provider': message['subChannelType']
 					};
+					if (message.hasOwnProperty('mailOptions')) {
+						message_item['json']['Mail Subject'] = message['mailOptions']['subject'] ? message['mailOptions']['subject'] : '';
+						// Potentially other mailOptions too?
+					}
 					let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
 					metric_definitions.forEach(metric => {
 						if (message_stats.values.hasOwnProperty(metric.id.toString())) {
