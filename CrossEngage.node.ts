@@ -35,6 +35,9 @@ export class CrossEngage implements INodeType {
 					}, {
 						name: 'Messages',
 						value: 'message'
+					}, {
+						name: 'A/B Variations',
+						value: 'variation'
 					}
 				],
 				default: 'campaign',
@@ -183,10 +186,15 @@ export class CrossEngage implements INodeType {
 						'Mail Subject': ''
 					};
 					if (message.hasOwnProperty('mailOptions') && message['mailOptions'] != null) {
-						message_item['json']['Mail Subject'] = message['mailOptions'].hasOwnProperty('subject') && message['mailOptions']['subject'] != null ? message['mailOptions']['subject'] : '';
-						// Potentially other mailOptions too?
+						if (message['mailOptions'].hasOwnProperty('subject') && message['mailOptions']['subject'] != null) {
+							message_item['json']['Mail Subject'] = message['mailOptions']['subject'];
+							// Potentially other mailOptions too?
+						}
 					} else if (message.hasOwnProperty('channelOptions') && message['channelOptions'] != null) {
-						message_item['json']['Mail Subject'] = message['channelOptions'].hasOwnProperty('subject') && message['channelOptions']['subject'] != null ? message['channelOptions']['subject'] : '';
+						if (message['channelOptions'].hasOwnProperty('subject') && message['channelOptions']['subject'] != null) {
+							message_item['json']['Mail Subject'] = message['channelOptions']['subject'];
+							// Potentially other mailOptions too?
+						}
 					}
 					let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
 					metric_definitions.forEach(metric => {
@@ -195,6 +203,83 @@ export class CrossEngage implements INodeType {
 						}						
 					});
 					results.push(message_item);
+				});
+			} else if (statistic_entity == 'variation') {
+				const campaign_details = await this.helpers.request({
+					method: 'GET',
+					url: 'https://ui-api.crossengage.io/ui/campaigns/' + campaign['id'].toString() + '/full',
+					headers: {
+						'Company-Id': xng_company_id,
+						'Authorization': 'Bearer ' + xng_token
+					},
+					json: true
+				});
+				const channel_configs = campaign_details.channelConfigs;
+				const variation_stats_response = await this.helpers.request({
+					method: 'GET',
+					url: 'https://ui-api.crossengage.io/ui/campaign/' + campaign['id'].toString() + '/stats',
+					headers: {
+						'Company-Id': xng_company_id,
+						'Authorization': 'Bearer ' + xng_token,
+						'X-XNG-ApiVersion': 2
+					},
+					qs: {
+						interval: 'DAY',
+						groupBy: 'VARIATION',
+						startDate: start_date,
+						endDate: end_date
+					},
+					json: true
+				});
+				channel_configs.forEach(message => {
+					let variation_data = [];
+					if (message.hasOwnProperty('experiment') && message['experiment'] && message['experiment'].hasOwnProperty('variations') && message['experiment']['variations'] && message['experiment']['variations'].length > 0) {
+						variation_data = message['experiment']['variations'];
+						variation_data.forEach(variation => {
+							let message_item = {};
+							message_item['json'] = {
+								'Company ID': xng_company_id,
+								'Start Date': start_date,
+								'End Date': end_date,
+								'Campaign ID': campaign['id'],
+								'Campaign Name': campaign['campaignName'],
+								'Campaign Mode': campaign['campaignMode'],
+								'Campaign Class': campaign['campaignClass'],
+								'Campaign Status': campaign['status'],
+								'Campaign Created': campaign['created'],
+								'Campaign Modified': campaign['modified'],
+								'Campaign Start Date': campaign_details['classOptions'] && campaign_details['classOptions']['startDate'] ? campaign_details['classOptions']['startDate'] : '',
+								'Next Campaign Dispatch': campaign['nextDispatch'],
+								'Campaign Group': campaign['groupName'],
+								'Campaign Labels': campaign['labels'].map((l: { name: string; }) => l.name).join(', '),
+								'Message ID': message['id'],
+								'Message Name': message['label'],
+								'Message Channel': message['channelType'],
+								'Message Provider': message['subChannelType'],
+								'Variation ID': '',
+								'Variation Name': '',
+								'Mail Subject': '',
+							};
+							message_item['json']['Variation ID'] = variation['id'];
+							if (variation.hasOwnProperty('content') && variation['content']) {
+								if (variation['content'].hasOwnProperty('label') && variation['content']['label']) {
+									message_item['json']['Variation Name'] = variation['content']['label'];
+								}
+								if (variation['content'].hasOwnProperty('mailOptions') && variation['content']['mailOptions'] != null) {
+									message_item['json']['Mail Subject'] = variation['content']['mailOptions'].hasOwnProperty('subject') && variation['content']['mailOptions']['subject'] != null ? variation['content']['mailOptions']['subject'] : '';
+								} else if (variation['content'].hasOwnProperty('channelOptions') && variation['content']['channelOptions'] != null) {
+									message_item['json']['Mail Subject'] = variation['content']['channelOptions'].hasOwnProperty('subject') && variation['content']['channelOptions']['subject'] != null ? variation['content']['channelOptions']['subject'] : '';
+								}
+							}
+							let variation_stats = variation_stats_response.overall.find(v => v.id == variation['id'].toString());
+							metric_definitions.forEach(metric => {
+								if (variation_stats.values.hasOwnProperty(metric.id.toString())) {
+									message_item['json'][metric.name] = isNaN(variation_stats.values[metric.id.toString()]) ? null : variation_stats.values[metric.id.toString()];
+								}						
+							});
+							results.push(message_item);	
+						});
+					}
 				});
 			} else {
 				let campaign_item = {};
