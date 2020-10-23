@@ -136,6 +136,7 @@ export class CrossEngage implements INodeType {
 		for (let i = 0; i < campaigns_response.list.length; i++) {
 			let campaign = campaigns_response.list[i];
 			if (statistic_entity == 'message') {
+
 				const campaign_details = await this.helpers.request({
 					method: 'GET',
 					url: 'https://ui-api.crossengage.io/ui/campaigns/' + campaign['id'].toString() + '/full',
@@ -145,7 +146,7 @@ export class CrossEngage implements INodeType {
 					},
 					json: true
 				});
-				const channel_configs = campaign_details.channelConfigs;
+				const channel_configs = (campaign_details.channelConfigs || campaign_details.messages);
 				const message_stats_response = await this.helpers.request({
 					method: 'GET',
 					url: 'https://ui-api.crossengage.io/ui/campaign/' + campaign['id'].toString() + '/stats',
@@ -214,7 +215,7 @@ export class CrossEngage implements INodeType {
 					},
 					json: true
 				});
-				const channel_configs = campaign_details.channelConfigs;
+				const channel_configs = (campaign_details.channelConfigs || campaign_details.messages);
 				const variation_stats_response = await this.helpers.request({
 					method: 'GET',
 					url: 'https://ui-api.crossengage.io/ui/campaign/' + campaign['id'].toString() + '/stats',
