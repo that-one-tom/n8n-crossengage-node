@@ -69,6 +69,17 @@ export class CrossEngage implements INodeType {
 				}
 			}
 		}, {
+			displayName: 'Daily Breakdown',
+			name: 'daily_breakdown',
+			type: 'boolean',
+			default: false,
+			description: 'Fetch data broken down per day instead of aggregated for the selected date range.',
+			displayOptions: {
+				show: {
+					entity: ['message']
+				}
+			}
+		}, {
 			displayName: 'Segment ID Key',
 			name: 'segment_id_property',
 			type: 'string',
@@ -95,6 +106,7 @@ export class CrossEngage implements INodeType {
 		let end_date = this.getNodeParameter('end_date', 0, '') as string + 'T23:59:59.999Z';
 		let fetch_entity = this.getNodeParameter('entity', 0, '') as string;
 		let segment_id_property = this.getNodeParameter('segment_id_property', 0, '') as string;
+		let daily_breakdown = this.getNodeParameter('daily_breakdown', 0, false) as boolean;
 
 		const xng_company_id_response = await this.helpers.request({
 			method: 'POST',
@@ -229,13 +241,51 @@ export class CrossEngage implements INodeType {
 								// Potentially other mailOptions too?
 							}
 						}
-						let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
-						metric_definitions.forEach(metric => {
-							if (message_stats.values.hasOwnProperty(metric.id.toString())) {
-								message_item['json'][metric.name] = isNaN(message_stats.values[metric.id.toString()]) ? null : message_stats.values[metric.id.toString()];
-							}
-						});
-						results.push(message_item);
+						if (daily_breakdown) {
+							Object.keys(message_stats_response.history).forEach(stat_date => {
+								let day_item = {
+									json: {
+									'Company ID': xng_company_id,
+									'Start Date': stat_date.substring(0, 10),
+									'Campaign ID': campaign['id'],
+									'Campaign Name': campaign['campaignName'],
+									'Campaign Mode': campaign['campaignMode'],
+									'Campaign Class': campaign['campaignClass'],
+									'Campaign Status': campaign['status'],
+									'Campaign Created': campaign['created'],
+									'Campaign Modified': campaign['modified'],
+									'Campaign Start Date': campaign_details['classOptions'] && campaign_details['classOptions']['startDate'] ? campaign_details['classOptions']['startDate'] : '',
+									'Next Campaign Dispatch': campaign['nextDispatch'],
+									'Campaign Group': campaign['groupName'],
+									'Campaign Labels': campaign['labels'].map((l: {
+										name: string;
+									}) => l.name).join(', '),
+									'Campaign Segment ID': campaign_details['filterId'],
+									'Message ID': message['id'],
+									'Message Name': message['label'],
+									'Message Channel': message['channelType'],
+									'Message Provider': message['subChannelType'],
+									'Mail Subject': '',
+									'Message Segment ID': message['filterId']
+									}
+								};
+								let day_stats = message_stats_response.history[stat_date].find(m => m.id == message['id'].toString());
+								metric_definitions.forEach(metric => {
+									if (day_stats.values.hasOwnProperty(metric.id.toString())) {
+										day_item['json'][metric.name] = isNaN(day_stats.values[metric.id.toString()]) ? null : day_stats.values[metric.id.toString()];
+									}
+								});
+								results.push(day_item);
+							});
+						} else {
+							let message_stats = message_stats_response.overall.find(m => m.id == message['id'].toString());
+							metric_definitions.forEach(metric => {
+								if (message_stats.values.hasOwnProperty(metric.id.toString())) {
+									message_item['json'][metric.name] = isNaN(message_stats.values[metric.id.toString()]) ? null : message_stats.values[metric.id.toString()];
+								}
+							});
+							results.push(message_item);
+						}
 					});
 				} else if (fetch_entity == 'variation') {
 					const campaign_details = await this.helpers.request({
@@ -343,31 +393,39 @@ export class CrossEngage implements INodeType {
 					results.push(campaign_item);
 				}
 			}
-
 			return this.prepareOutputData(results);
 		} else if (['segmentDetails'].includes(fetch_entity)) {
 			const items = this.getInputData();
 			let results = [];
 
 			for (const element of items) {
-				const segment_response = await this.helpers.request({
-					method: 'GET',
-					url: 'https://ui-api.crossengage.io/ui/filters/' + element.json[segment_id_property],
-					headers: {
-						'Company-Id': xng_company_id,
-						'Authorization': 'Bearer ' + xng_token
-					},
-					json: true
-				});
-				let result = {
-					json: {
-						'Segment ID': segment_response['id'],
-						'Segment Name': segment_response['label']
-					}
-				};
-				results.push(result);
+				if (element.json[segment_id_property]) {
+					const segment_response = await this.helpers.request({
+						method: 'GET',
+						url: 'https://ui-api.crossengage.io/ui/filters/' + element.json[segment_id_property],
+						headers: {
+							'Company-Id': xng_company_id,
+							'Authorization': 'Bearer ' + xng_token
+						},
+						json: true
+					});
+					let result = {
+						json: {
+							'Segment ID': segment_response['id'],
+							'Segment Name': segment_response['label']
+						}
+					};
+					results.push(result);
+				} else {
+					let result = {
+						json: {
+							'Segment ID': null,
+							'Segment Name': null
+						}
+					};
+					results.push(result);
+				}
 			}
-			
 			return this.prepareOutputData(results);
 		}
 
